@@ -1,0 +1,260 @@
+<!--
+@name: FALCON_cmp_CupsMassiveModify.cmp
+@date: 05/03/2020
+@author: Gonzalo Torres
+@description: 00709
+*History: 
+<Date>                      <Author>                    <Change Description>
+04-feb-2020					Gonzalo Torres				00709 - Table implementation
+10-feb-2020                 Gonzalo Torres              00709 - Validations
+12-feb-2020                 Gonzalo Torres              00709 - Filters implementation
+
+-->
+
+<aura:component implements="flexipage:availableForAllPageTypes,force:hasRecordId,forceCommunity:availableForAllPageTypes,force:appHostable,force:lightningQuickAction,flexipage:availableForRecordHome" access="global" controller="FALCON_ctr_CupsMassiveModify_cc" >
+<aura:attribute name="showSpinner" type="Boolean" default="true" />
+
+<aura:handler name="init" value="{!this}" action="{!c.doInit}"/>
+
+<aura:html tag="style">
+    .slds-modal__container{
+    max-width: 80rem !important;
+    width:100% !important;
+    }
+</aura:html>
+
+
+<!-- attributes -->
+<aura:attribute name="recordId" type="String" default=""/>
+<aura:attribute name="oppId" type="String" default=""/>
+<aura:attribute name="cupsName" type="String" />                                                
+<aura:attribute name="cifnif" type="String"/>
+<aura:attribute name="tarifa" type="String"/> 
+<aura:attribute name="tipoMovimiento" type="String"/>
+<aura:attribute name="showTable" type="Boolean" default="true"/>
+<aura:attribute name="movimientos" type="String[]"/>
+<aura:attribute name="tarifas" type="String[]"/>
+<aura:attribute name="modificadoB" type="Boolean[]"/>
+<aura:attribute name="tooltipTarifa" type="String"/>
+
+<!--Attribute to store CUPS info-->
+<aura:attribute name="body" type="Object[]"/>
+
+<div class="slds-modal__container" >
+    <!-- CABECERA -->
+    <h3 class="slds-section__title">
+        <div class="cabecera" style="text-align: center; width: 100%;">
+            <span class="slds-truncate" title="Section Title"/>
+        </div>
+    </h3>
+    
+    <div class="slds-grid slds-gutters">
+        <!-- FILTRO CUPS -->
+        <div class="slds-col" style="width:20%;">
+            <span>
+                <div class="slds-form-element__control">
+                    <div class="slds-form-element">
+                        <div class="slds-form-element__control" id="Name_div">
+                            <lightning:input type="string" name="CupsFilter" label="CUPS" value="{!v.cupsName}"/>
+                        </div>
+                    </div>
+                </div>
+            </span>
+        </div>
+        <!-- FILTRO CIF/NIF -->
+        <div class="slds-col" style="width:10%;">
+            <span>
+                <div class="slds-form-element__control">
+                    <div class="slds-form-element">
+                        <div class="slds-form-element__control" id="Name_div">
+                            <lightning:input type="string" name="CifNifFilter" label="CIF/NIF" value="{!v.cifnif}"/>
+                        </div>
+                    </div>
+                </div>
+            </span>
+        </div>
+        <!-- FILTRO TARIFA -->
+        <div class="slds-col" style="width:20%;">
+            <span>
+                <div class="slds-form-element__control">
+                    <div class="slds-form-element">
+                        <div class="slds-form-element__control" id="Name_div">
+                            <label class="slds-form-element__label">Tarifa</label>
+                            <select class="slds-select" name="select" label="Tarifa" value="{!v.tarifa}" id="tarifaFilter">
+                                <aura:if isTrue="{!or(v.tarifa == undefined, v.tarifa == ' ')}">
+                                    <option value="" selected="{!v.tarifa == undefined}">
+                                        --None--
+                                    </option>
+                                </aura:if>
+                                <aura:iteration items="{!v.tarifas}" var="value">
+                                    <option value="{!value}" selected="{!v.tarifa == value}">
+                                        {!value}
+                                    </option>
+                                </aura:iteration>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </span>
+        </div>
+        <!-- FILTRO TIPO DE MOVIMIENTO -->
+        <div class="slds-col" style="width:30%;">
+            <span>
+                <div class="slds-form-element__control">
+                    <div class="slds-form-element">
+                        <label class="slds-form-element__label">Tipo de movimiento</label>
+                        <select class="slds-select" name="select" label="Tipo de movimiento" value="{!v.tipoMovimiento}" id="tipoMovFilter">
+                            <aura:if isTrue="{!or(v.tipoMovimiento == undefined, v.tipoMovimiento == ' ')}">
+                                <option value="" selected="{!v.tipoMovimiento == undefined}">
+                                    --None--
+                                </option>
+                            </aura:if>
+                            <aura:iteration items="{!v.movimientos}" var="value">
+                                    <option value="{!value}" selected="{!v.tipoMovimiento == value}">
+                                        {!value}
+                                    </option>
+                            </aura:iteration>
+                        </select>
+                    </div>
+                </div>
+            </span>
+        </div>
+        <!-- BOTON APLICAR FILTRO -->
+        
+        <div class="slds-col" style="width:10%; padding-top:23px;">
+            <span>
+                <div class="slds-form-element__control">
+                    <div class="slds-form-element">
+                        <div class="slds-form-element__control" id="Name_div">
+                            <button class="slds-button slds-button_brand" onclick="{!c.aplicar}">Refrescar</button>
+                        </div>
+                    </div>
+                </div>
+            </span>
+        </div>
+    </div>
+
+
+    <!--TABLA CUPS-->
+
+    <table class="slds-table slds-table_bordered slds-table_resizable-cols" role="grid" style='margin-top: 30px;'>
+        <thead>
+            <tr>
+                <th class="slds-is-resizable slds-is-sortable" scope="col" style="width:5%;">
+                    <label class="slds-form-element__label">MODIFICADO</label>
+                </th>
+                <th class="slds-is-resizable slds-is-sortable" scope="col" style="width:8%;">
+                    <label class="slds-form-element__label">CUPS</label>
+                </th>
+                <th class="slds-is-resizable slds-is-sortable" scope="col" style="width:7%;">
+                    <label class="slds-form-element__label">CIF/NIF</label>
+                </th>
+                <th class="slds-is-resizable slds-is-sortable" scope="col" style="width:8%;">
+                    <label class="slds-form-element__label">TARIFA</label>
+                </th>
+                <th class="slds-is-resizable slds-is-sortable" scope="col" style="width:1%;">
+                    <label class="slds-form-element__label"></label>
+                </th>
+                <th class="slds-is-resizable slds-is-sortable" scope="col" style="width:51%;">
+                    <label class="slds-form-element__label">POTENCIAS (kWh)</label>
+                </th>
+                <th class="slds-is-resizable slds-is-sortable" scope="col" style="width:20%;">
+                    <label class="slds-form-element__label">TIPO DE MOVIMIENTO</label>
+                </th>
+            </tr>
+        </thead>
+        
+        <aura:iteration items="{!v.body}" var="cup" indexVar="index">
+            <tbody>
+                <tr class="slds-hint-parent">
+                    <td class="slds-text-align_left" role="gridcell">
+                        <lightning:input type="checkbox" value="{!cup.checked}" disabled="true" checked="{!cup.checked}" name="{!index}"/>
+                    </td>
+                    <td class="slds-text-align_left" role="gridcell">
+                        <label class="slds-form-element__label">{!cup.Name}</label> 
+                    </td>
+                    <td class="slds-text-align_left" role="gridcell">
+                        <label class="slds-form-element__label">{!cup.AccounDocumentNumber}</label> 
+                    </td>
+                    <td class="slds-text-align_left" role="gridcell">
+                        <!--{!cup.FALCON_fld_Toll__c}-->
+                        <select class="slds-select" id ="tarifaCUP" aura:id = "tarifaCUP" value="{!cup.FALCON_fld_Toll__c}" onchange="{!c.modificadoTarifa}" indexVar="indexT" name="{!index}">
+                            <aura:if isTrue="{!or(v.cup.FALCON_fld_Toll__c == undefined, v.cup.FALCON_fld_Toll__c == ' ')}">
+                                <option value=" " selected="{!v.cup.FALCON_fld_Toll__c == undefined}">
+                                    N/A
+                                </option>
+                            </aura:if>
+                            <aura:iteration items="{!v.tarifas}" var="item">
+                                <option value="{!item}" selected="{!cup.FALCON_fld_Toll__c == item}">
+                                    {!item}
+                                </option>
+                            </aura:iteration>
+                        </select>
+                    </td>
+                    <td class="slds-text-align_left" role="gridcell">
+                        <div class="" aura:id="tooltipTarifa" onclick="">
+                            <lightning:helptext content="{!cup.msg}" iconName="utility:info"/>
+                        </div>
+                    </td>   
+                    <!--<td role="" style="background-color:white;">-->
+                        <table class="" style="background-color:white;"> 
+                            <tbody>
+                                <tr class="slds-hint-parent">
+                                    <td class="slds-text-align_center" role="">
+                                        <lightning:input type="number" formatter="decimal" aura:id="cp1" name="{!index}" value="{!cup.FALCON_fld_ContractPowerP1__c}"  label="P1" variant="label-stacked" step="0.0001" onchange="{!c.modificadoCheckPot1}"/>
+                                    </td>
+                                    <td class="slds-text-align_center" role="">
+                                        <lightning:input type="number" formatter="decimal" aura:id="cp2" name="{!index}" value="{!cup.FALCON_fld_ContractPowerP2__c}" label="P2" variant="label-stacked" step="0.0001" onchange="{!c.modificadoCheckPot2}"/>
+                                    </td>
+                                    <td class="slds-text-align_center" role="">
+                                        <lightning:input type="number" formatter="decimal" aura:id="cp3" name="{!index}" value="{!cup.FALCON_fld_ContractPowerP3__c}" label="P3" variant="label-stacked" step="0.0001" onchange="{!c.modificadoCheckPot3}"/>
+                                    </td>
+                                    <td class="slds-text-align_center" role="">
+                                        <lightning:input type="number" formatter="decimal" aura:id="cp4" name="{!index}" value="{!cup.FALCON_fld_ContractPowerP4__c}" label="P4" variant="label-stacked" step="0.0001" onchange="{!c.modificadoCheckPot4}"/>
+                                    </td>
+                                    <td class="slds-text-align_center" role="">
+                                        <lightning:input type="number" formatter="decimal" aura:id="cp5" name="{!index}" value="{!cup.FALCON_fld_ContractPowerP5__c}"  label="P5" variant="label-stacked" step="0.0001" onchange="{!c.modificadoCheckPot5}"/>
+                                    </td>
+                                    <td class="slds-text-align_center" role="">
+                                        <lightning:input type="number" formatter="decimal" aura:id="cp6" name="{!index}" value="{!cup.FALCON_fld_ContractPowerP6__c}" label="P6" variant="label-stacked" step="0.0001" onchange="{!c.modificadoCheckPot6}"/>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    <!--</td>-->
+                    <td class="slds-text-align_left" role="gridcell">
+                        <select class="slds-select" id ="tarifaCUP" value="{!cup.Tipo_de_Movimiento__c}" onchange="{!c.modificadoTM}" name="{!index}">
+                            <aura:if isTrue="{!or(v.cup.Tipo_de_Movimiento__c == undefined, v.cup.Tipo_de_Movimiento__c == ' ')}">
+                                <option value=" " selected="{!v.cup.Tipo_de_Movimiento__c == undefined}">
+                                    --None--
+                                </option>
+                            </aura:if>
+                            <aura:iteration items="{!v.movimientos}" var="item">
+                                    <option value="{!item}" selected="{!cup.Tipo_de_Movimiento__c == item}">
+                                        {!item}
+                                    </option>
+                            </aura:iteration>
+                        </select>
+                    </td>      
+                </tr>
+            </tbody>
+        </aura:iteration>
+    </table>
+
+</div>
+
+<!-- BOTON GUARDAR -->
+        
+<div class="slds-float_right right-align" style="width:30%; padding-top:23px;float:right; text-align:right;">
+    <span>
+        <div class="slds-form-element__control">
+            <div class="slds-form-element">
+                <div class="slds-form-element__control" id="b-guardar-div">
+                    <button class="slds-button slds-button_brand" onclick="{!c.guardar}">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </span>
+</div>
+
+</aura:component>
